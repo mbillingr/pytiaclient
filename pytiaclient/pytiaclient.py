@@ -12,6 +12,7 @@ import socket
 import threading
 import struct
 import xml.etree.ElementTree as ElementTree
+from collections import deque
 
 from .utils import recv_until, bitcount
 
@@ -25,7 +26,7 @@ __version__ = "1.0.0"
 SOCKET_TIMEOUT = 2  # Socket timeout (in seconds)
 TIA_VERSION = 1.0
 FIXED_HEADER_SIZE = 33  # Fixed header size (in bytes)
-BUFFER_SIZE = 2  # TODO: Implement buffer size limit
+BUFFER_SIZE = None  # None means infinite size
 SIGNAL_TYPES = {"eeg": 0, "emg": 1, "eog": 2, "ecg": 3, "hr": 4, "bp": 5, "button": 6,
                 "axes": 7, "sensor": 8, "nirs": 9, "fmri": 10, "keycode": 11,
                 "user1": 16, "user2": 17, "user3": 18, "user4": 19,
@@ -160,6 +161,7 @@ class TIAClient(object):
 
         """
         with self._buffer_lock:
+            #TODO: convert deques to lists?
             tmp = self._buffer
             self._clear_buffer()
             return tmp
@@ -184,6 +186,7 @@ class TIAClient(object):
         with self._buffer_lock:
             while self._buffer_empty:
                 self._buffer_avail.wait()
+            #TODO: convert deques to lists?
             tmp = self._buffer
             self._clear_buffer()
             return tmp
@@ -357,7 +360,7 @@ class TIAClient(object):
         self._buffer_empty = True
         self._buffer = [[] for _ in range(len(self._metainfo["signals"]))]  # Empty list for each signal group
         for index, signal in enumerate(self._metainfo["signals"]):
-            self._buffer[index] = [[] for _ in range(int(signal["numChannels"]))]  # Empty list for each channel
+            self._buffer[index] = [deque(maxlen=BUFFER_SIZE) for _ in range(int(signal["numChannels"]))]  # Empty deque for each channel
 
 
 class TIAError(Exception):
