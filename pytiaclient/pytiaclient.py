@@ -191,12 +191,53 @@ class TIAClient(object):
             self._clear_buffer()
             return tmp
 
+    def get_data_block(self, n_samples):
+        """Returns specified number of samples for each signal type. Blocks unt
+        il enough data is available.
+
+        Parameters
+        ----------
+        n_samples : list
+            Number of samples to return for each signal type.
+
+        Returns
+        -------
+        data : list of lists
+            Data
+
+        Raises
+        ------
+        TIAError
+            If the data transmission has not been started.
+        """
+        if not self._thread_running:
+            raise TIAError("Data transmission has not been started.")
+
+        with self._buffer_lock:
+            while not self._has_samples(n_samples):
+                self._buffer_avail.wait()
+
+        data = []
+        for signals, n_s in zip(self._buffer, n_samples):
+            tmp = [[channel.popleft() for _ in range(n_s)] for channel in signals]
+            data.append(tmp)
+        return data
+
     def get_state_connection(self):
         """Creates a state connection.
 
         """
         pass
         # TODO: This method should probably be private, run in a separate thread and just receive state messages.
+
+    def _has_samples(self, n_samples):
+        if self._buffer_empty:
+            ready = False
+        else:
+            ready = True
+            for signals, n_s in zip(self._buffer, n_samples):
+                ready &= all([len(channel) >= n_s for channel in signals])
+        return ready
 
     def _check_protocol(self):
         """Checks if server supports the protocol version implemented by this client.
